@@ -1,0 +1,4 @@
+/VOCdevkit/
+/save_weights/
+/.idea/
+*.pth

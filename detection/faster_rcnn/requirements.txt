@@ -1,0 +1,8 @@
+lxml
+matplotlib
+numpy==1.22.4
+tqdm
+torch==1.7.1
+torchvision==0.8.2
+pycocotools
+Pillow==9.1.1
