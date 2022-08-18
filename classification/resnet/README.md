@@ -8,3 +8,7 @@
   ├── predict.py: 单张图像预测脚本
   └── batch_predict.py: 批量图像预测脚本
 ```
+
+## 如何修改自己的分类类别
+"train.py中"第71行的```net.fc = nn.Linear(in_channel, 2)```2改成你自己的类别，"predict.py"中的第39行
+```model = resnet34(num_classes=2).to(device)```num_classes改成自己的类别
