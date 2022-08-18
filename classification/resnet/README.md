@@ -1,6 +1,6 @@
 ## 用简单的二分类实现人脸识别
 数据集采用的是imagenet的格式组织，分别为两类：马云和彭于晏。采用resnet34和迁移学习的方式进行图片分类即可。预训练权重下载地址：
-https://download.pytorch.org/models/resnet34-333f7ec4.pth，下载完成后重命名为"resnet34-pre.pth"，放到resnet根目录下即可
+https://download.pytorch.org/models/resnet34-333f7ec4.pth 下载完成后重命名为"resnet34-pre.pth"，放到resnet根目录下即可
 
 ## 文件结构：
 ```
