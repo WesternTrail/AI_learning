@@ -19,10 +19,10 @@ def main():
 
     # load image
     # 指向需要遍历预测的图像文件夹
-    imgs_root = "/data/imgs"
+    imgs_root = "../data_set/face_data/face_photos/mayun"
     assert os.path.exists(imgs_root), f"file: '{imgs_root}' dose not exist."
-    # 读取指定文件夹下所有jpg图像路径
-    img_path_list = [os.path.join(imgs_root, i) for i in os.listdir(imgs_root) if i.endswith(".jpg")]
+    # 读取指定文件夹下所有jpg/png图像路径
+    img_path_list = [os.path.join(imgs_root, i) for i in os.listdir(imgs_root) if i.endswith(".png")]
 
     # read class_indict
     json_path = './class_indices.json'
@@ -32,10 +32,10 @@ def main():
     class_indict = json.load(json_file)
 
     # create model
-    model = resnet34(num_classes=5).to(device)
+    model = resnet34(num_classes=2).to(device)
 
     # load model weights
-    weights_path = "./resNet34.pth"
+    weights_path = "./save_weights/resNet34.pth"
     assert os.path.exists(weights_path), f"file: '{weights_path}' dose not exist."
     model.load_state_dict(torch.load(weights_path, map_location=device))
 
