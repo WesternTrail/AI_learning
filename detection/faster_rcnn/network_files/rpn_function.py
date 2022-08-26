@@ -99,7 +99,7 @@ class AnchorsGenerator(nn.Module):
                 return
 
         # 根据提供的sizes和aspect_ratios生成anchors模板
-        # anchors模板都是以(0, 0)为中心的anchor
+        # anchors模板都是以feature_cell为中心的anchor
         cell_anchors = [
             self.generate_anchors(sizes, aspect_ratios, dtype, device)
             for sizes, aspect_ratios in zip(self.sizes, self.aspect_ratios) # sizes的个数就是用几个特征层训练RPN
@@ -154,7 +154,7 @@ class AnchorsGenerator(nn.Module):
             shifts_anchor = shifts.view(-1, 1, 4) + base_anchors.view(1, -1, 4)
             anchors.append(shifts_anchor.reshape(-1, 4))
 
-        return anchors  # List[Tensor(all_num_anchors, 4)]，可能有1万多个anchors
+        return anchors  # List[Tensor(all_num_anchors, 4)]，可能有10万多个anchors
 
     def cached_grid_anchors(self, grid_sizes, strides):
         # type: (List[List[int]], List[List[Tensor]]) -> List[Tensor]
@@ -172,7 +172,7 @@ class AnchorsGenerator(nn.Module):
         # 获取每个预测特征层的尺寸(height, width)
         grid_sizes = list([feature_map.shape[-2:] for feature_map in feature_maps])
 
-        # 获取输入图像的height和width,这个是标准化（resize和padding）后的之后的图片
+        # 获取输入图像的height和width,这个是标准化（resize和padding）后的之后的图片尺寸
         image_size = image_list.tensors.shape[-2:]
 
         # 获取变量类型和设备类型
@@ -634,7 +634,7 @@ class RegionProposalNetwork(torch.nn.Module):
         losses = {}
         if self.training: # 训练阶段的loss
             assert targets is not None
-            # 计算每个anchors而不是boxes最匹配的gt，并将anchors进行分类，前景，背景以及废弃的anchors。这里根据IOU分配正负样本是使用函数计算
+            # 计算每个anchors而不是proposals最匹配的gt，并将anchors进行分类，前景，背景以及废弃的anchors。这里根据IOU分配正负样本是使用函数计算
             labels, matched_gt_boxes = self.assign_targets_to_anchors(anchors, targets)
             # 结合anchors以及对应的gt，计算真实的regression参数
             regression_targets = self.box_coder.encode(matched_gt_boxes, anchors)
