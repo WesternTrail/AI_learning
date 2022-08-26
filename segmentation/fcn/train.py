@@ -158,7 +158,7 @@ def main(args):
                      "args": args}
         if args.amp:
             save_file["scaler"] = scaler.state_dict()
-        torch.save(save_file, "/content/drive/MyDrive/分割/fcn/save_weights/model_{}.pth".format(epoch))
+        torch.save(save_file, "./save_weights/model_{}.pth".format(epoch))
 
     total_time = time.time() - start_time
     total_time_str = str(datetime.timedelta(seconds=int(total_time)))
@@ -169,7 +169,7 @@ def parse_args():
     import argparse
     parser = argparse.ArgumentParser(description="pytorch fcn training")
 
-    parser.add_argument("--data-path", default="./", help="VOCdevkit root")
+    parser.add_argument("--data-path", default="C:\\Users\\24484\\Downloads\\AI_learning\\detection\\faster_rcnn", help="VOCdevkit root")
     parser.add_argument("--num-classes", default=20, type=int)
     parser.add_argument("--aux", default=True, type=bool, help="auxilier loss")
     parser.add_argument("--device", default="cuda", help="training device")
@@ -199,7 +199,7 @@ def parse_args():
 if __name__ == '__main__':
     args = parse_args()
 
-    if not os.path.exists("/content/drive/MyDrive/分割/fcn/save_weights"):
-        os.mkdir("/content/drive/MyDrive/分割/fcn/save_weights")
+    if not os.path.exists("./save_weights"):
+        os.mkdir("./save_weights")
 
     main(args)
