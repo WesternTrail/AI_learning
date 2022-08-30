@@ -24,7 +24,7 @@ def _resize_image_onnx(image, self_min_size, self_max_size):
     return image
 
 
-def _resize_image(image, self_min_size, self_max_size): # self_min_size,self_max_size都是手动设置的图片最小，最大尺寸
+def _resize_image(image, self_min_size, self_max_size): # 将图片的边长用双线性插值插值到min_size到max_size之间
     # type: (Tensor, float, float) -> Tensor
     im_shape = torch.tensor(image.shape[-2:])
     min_size = float(torch.min(im_shape))    # 获取高宽中的最小值
@@ -144,7 +144,7 @@ class GeneralizedRCNNTransform(nn.Module):
 
         return torch.stack(padded_imgs)
 
-    def max_by_axis(self, the_list): # 活的多张图片中的最大通道，最大宽，最大高
+    def max_by_axis(self, the_list): # 获得多张图片中的最大通道，最大宽，最大高
         # type: (List[List[int]]) -> List[int]
         maxes = the_list[0]
         for sublist in the_list[1:]:

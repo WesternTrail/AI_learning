@@ -1,7 +1,6 @@
 import random
 from torchvision.transforms import functional as F
 
-
 class Compose(object):
     """组合多个transform函数"""
     def __init__(self, transforms):

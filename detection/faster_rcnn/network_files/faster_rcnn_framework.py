@@ -95,11 +95,11 @@ class FasterRCNNBase(nn.Module):
         # 将rpn生成的数据以及标注target信息传入fast rcnn后半部分，detections是检测到的候选框回归参数
         detections, detector_losses = self.roi_heads(features, proposals, images.image_sizes, targets)
 
-        # 对网络的预测结果进行后处理（主要将bboxes还原到原图像尺度上）
+        # 对网络的预测结果进行后处理（主要将bboxes还原到原图像尺度上）,generalized transfomed
         detections = self.transform.postprocess(detections, images.image_sizes, original_image_sizes)
 
         losses = {}
-        losses.update(detector_losses) # faster-rcnn误差
+        losses.update(detector_losses) # roi_heads误差
         losses.update(proposal_losses) # rpn的误差
 
         if torch.jit.is_scripting():  # 转成torch_script可以优化模型
@@ -314,7 +314,7 @@ class FasterRCNN(FasterRCNNBase):
             rpn_pre_nms_top_n, rpn_post_nms_top_n, rpn_nms_thresh,
             score_thresh=rpn_score_thresh)
 
-        #  Multi-scale RoIAlign pooling,mobilenet不需要4层
+        #  Multi-scale RoIAlign pooling,mobilenet不需要
         if box_roi_pool is None:
             box_roi_pool = MultiScaleRoIAlign(
                 featmap_names=['0', '1', '2', '3'],  # 在哪些特征层进行roi pooling

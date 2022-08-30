@@ -348,7 +348,7 @@ class Matcher(object):
 
         if self.allow_low_quality_matches:
             assert all_matches is not None
-            self.set_low_quality_matches_(matches, all_matches, match_quality_matrix)
+            self.set_low_quality_matches_(matches, all_matches, match_quality_matrix) # 将每个GT匹配的最大IOU的anchor分配，而不要求满足IOU大于0.7
 
         return matches
 

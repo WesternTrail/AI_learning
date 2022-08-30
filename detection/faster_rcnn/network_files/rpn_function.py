@@ -187,7 +187,7 @@ class AnchorsGenerator(nn.Module):
         self.set_cell_anchors(dtype, device) # 更新了cell_anchor
 
         # 计算/读取所有特征点上anchors的坐标信息（这里的anchors信息是映射到原图上的所有anchors信息，不是anchors模板）
-        # 得到的是一个list列表，对应每张预测特征图映射回原图的anchors坐标信息
+        # 得到的是一个list列表，特征图上每个特征点都生成3种尺度的锚框
         anchors_over_all_feature_maps = self.cached_grid_anchors(grid_sizes, strides)
 
         anchors = torch.jit.annotate(List[List[torch.Tensor]], [])
@@ -216,7 +216,7 @@ class RPNHead(nn.Module):
         num_anchors: number of anchors to be predicted
     """
 
-    def __init__(self, in_channels, num_anchors):
+    def __init__(self, in_channels, num_anchors): # num_anchors一般是3
         super(RPNHead, self).__init__()
         # 3x3 滑动窗口,通道数不变，检测是否包含物体
         self.conv = nn.Conv2d(in_channels, in_channels, kernel_size=3, stride=1, padding=1)
@@ -355,7 +355,7 @@ class RegionProposalNetwork(torch.nn.Module):
 
         # assign ground-truth boxes for each anchor
         self.proposal_matcher = det_utils.Matcher(
-            fg_iou_thresh,  # 当iou大于fg_iou_thresh(0.7)时视为正样本
+            fg_iou_thresh,  # 当anchors和gt的iou大于fg_iou_thresh(0.7)时视为正样本
             bg_iou_thresh,  # 当iou小于bg_iou_thresh(0.3)时视为负样本
             allow_low_quality_matches=True
         )
@@ -381,7 +381,7 @@ class RegionProposalNetwork(torch.nn.Module):
             return self._post_nms_top_n['training']
         return self._post_nms_top_n['testing']
 
-    def assign_targets_to_anchors(self, anchors, targets):
+    def assign_targets_to_anchors(self, anchors, targets): # GTBOX分配给anchors
         # type: (List[Tensor], List[Dict[str, Tensor]]) -> Tuple[List[Tensor], List[Tensor]]
         """
         计算每个anchors最匹配的gt，并划分为正样本，背景以及废弃的样本
@@ -417,15 +417,17 @@ class RegionProposalNetwork(torch.nn.Module):
                 # 因为后面是通过labels_per_image变量来记录正样本位置的，
                 # 所以负样本和舍弃的样本对应的gt_boxes信息并没有什么意义，
                 # 反正计算目标边界框回归损失时只会用到正样本。
-                matched_gt_boxes_per_image = gt_boxes[matched_idxs.clamp(min=0)] # 把负样本和丢弃的anchor都分配给0号GTBOX，其余的正常分配
+                matched_gt_boxes_per_image = gt_boxes[matched_idxs.clamp(min=0)] # 把负样本和丢弃的anchor都暂时分配给0号GTBOX，其余的正常分配
 
                 # 记录所有anchors匹配后的标签(正样本处标记为1，负样本处标记为0，丢弃样本处标记为-1)
-                labels_per_image = matched_idxs >= 0 # 找到正样本的标签位置
+
+                # 找到匹配GT成功的anchor下标,作为正样本
+                labels_per_image = matched_idxs >= 0
                 labels_per_image = labels_per_image.to(dtype=torch.float32)
 
                 # background (negative examples)，找到背景的标签位置
                 bg_indices = matched_idxs == self.proposal_matcher.BELOW_LOW_THRESHOLD  # -1
-                labels_per_image[bg_indices] = 0.0
+                labels_per_image[bg_indices] = 0.0 # 负样本都标记为0
 
                 # 找到丢弃的蒙版
                 inds_to_discard = matched_idxs == self.proposal_matcher.BETWEEN_THRESHOLDS  # -2
@@ -512,7 +514,7 @@ class RegionProposalNetwork(torch.nn.Module):
             # 调整预测的boxes信息，将越界的坐标调整到图片边界上
             boxes = box_ops.clip_boxes_to_image(boxes, img_shape)
 
-            # 返回boxes满足宽，高都大于min_size的索引
+            # 返回boxes满足宽，剔除尺寸太小的框
             keep = box_ops.remove_small_boxes(boxes, self.min_size)
             boxes, scores, lvl = boxes[keep], scores[keep], lvl[keep]
 
@@ -521,7 +523,7 @@ class RegionProposalNetwork(torch.nn.Module):
             keep = torch.where(torch.ge(scores, self.score_thresh))[0]  # ge: >=
             boxes, scores, lvl = boxes[keep], scores[keep], lvl[keep]
 
-            # non-maximum suppression, independently done per level
+            # 批量的nms
             keep = box_ops.batched_nms(boxes, scores, lvl, self.nms_thresh) #8700-3319大量减少proposal
 
             # keep only topk scoring predictions

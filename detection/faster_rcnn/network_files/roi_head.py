@@ -247,7 +247,7 @@ class RoIHeads(torch.nn.Module):
             if gt_boxes_in_image.numel() == 0:
                 gt_boxes_in_image = torch.zeros((1, 4), dtype=dtype, device=device)
             # 获取对应正负样本的gt box信息
-            matched_gt_boxes.append(gt_boxes_in_image[matched_idxs[img_id]])
+            matched_gt_boxes.append(gt_boxes_in_image[matched_idxs[img_id]]) # 存放正负样本匹配的gt坐标信息
 
         # 根据gt和proposal计算边框回归参数（针对gt的)
         regression_targets = self.box_coder.encode(matched_gt_boxes, proposals)
@@ -397,7 +397,7 @@ class RoIHeads(torch.nn.Module):
                 "loss_box_reg": loss_box_reg
             }
         else:
-            boxes, scores, labels = self.postprocess_detections(class_logits, box_regression, proposals, image_shapes)
+            boxes, scores, labels = self.postprocess_detections(class_logits, box_regression, proposals, image_shapes) # 预测才会进行nms处理
             num_images = len(boxes)
             for i in range(num_images):
                 result.append(
