@@ -170,7 +170,7 @@ def main(args):
             'epoch': epoch}
         if args.amp:
             save_files["scaler"] = scaler.state_dict()
-        torch.save(save_files, "args.output_dir/resNetFpn-model-{}.pth".format(epoch))
+        torch.save(save_files, "/content/drive/Shareddrives/2448431638/目标检测/faster-rcnn/try2/save_weights/resNetFpn-model-{}.pth".format(epoch))
 
     # plot loss and lr curve
     if len(train_loss) != 0 and len(learning_rate) != 0:
