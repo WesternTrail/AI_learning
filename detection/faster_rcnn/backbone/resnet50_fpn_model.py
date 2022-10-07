@@ -31,7 +31,7 @@ class Bottleneck(nn.Module):
 
     def forward(self, x):
         identity = x
-        if self.downsample is not None:
+        if self.downsample is not None: # 跳连结构
             identity = self.downsample(x)
 
         out = self.conv1(x)
@@ -46,7 +46,7 @@ class Bottleneck(nn.Module):
         out = self.bn3(out)
 
         out += identity
-        out = self.relu(out)
+        out = self.relu(out) # 跳连结构之后再用resnet
 
         return out
 
@@ -82,14 +82,14 @@ class ResNet(nn.Module):
     def _make_layer(self, block, channel, block_num, stride=1):
         norm_layer = self._norm_layer
         downsample = None
-        if stride != 1 or self.in_channel != channel * block.expansion:
+        if stride != 1 or self.in_channel != channel * block.expansion: # 如果是layer2,3,4的conv1要进行下采样，或者说是每个layer的第一个block的虚线残差结构,实线结构没有下采样
             downsample = nn.Sequential(
-                nn.Conv2d(self.in_channel, channel * block.expansion, kernel_size=1, stride=stride, bias=False),
+                nn.Conv2d(self.in_channel, channel * block.expansion, kernel_size=1, stride=stride, bias=False), # 第一个layer的stride=1
                 norm_layer(channel * block.expansion))
 
         layers = []
         layers.append(block(self.in_channel, channel, downsample=downsample,
-                            stride=stride, norm_layer=norm_layer))
+                            stride=stride, norm_layer=norm_layer)) # channel为64，128，256，512
         self.in_channel = channel * block.expansion
 
         for _ in range(1, block_num):
@@ -155,7 +155,7 @@ def resnet50_fpn_backbone(pretrain_path="",
     """
     resnet_backbone = ResNet(Bottleneck, [3, 4, 6, 3],
                              include_top=False,
-                             norm_layer=norm_layer)
+                             norm_layer=norm_layer) # resnet50
 
     if isinstance(norm_layer, FrozenBatchNorm2d):
         overwrite_eps(resnet_backbone, 0.0)
@@ -165,7 +165,7 @@ def resnet50_fpn_backbone(pretrain_path="",
         # 载入预训练权重
         print(resnet_backbone.load_state_dict(torch.load(pretrain_path), strict=False))
 
-    # select layers that wont be frozen
+    # select layers that wont be frozen，第一层冻结
     assert 0 <= trainable_layers <= 5
     layers_to_train = ['layer4', 'layer3', 'layer2', 'layer1', 'conv1'][:trainable_layers]
 
@@ -175,7 +175,7 @@ def resnet50_fpn_backbone(pretrain_path="",
 
     # freeze layers
     for name, parameter in resnet_backbone.named_parameters():
-        # 只训练不在layers_to_train列表中的层结构
+        # 将不在layers_to_train列表中的层结构冻结
         if all([not name.startswith(layer) for layer in layers_to_train]):
             parameter.requires_grad_(False)
 

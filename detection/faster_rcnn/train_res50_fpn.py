@@ -21,6 +21,7 @@ def create_model(num_classes, load_pretrain_weights=True):
     # resnet50 imagenet weights url: https://download.pytorch.org/models/resnet50-0676ba61.pth
     backbone = resnet50_fpn_backbone(pretrain_path="./backbone/resnet50.pth",
                                      norm_layer=torch.nn.BatchNorm2d,
+                                     # torch.nn.BatchNorm2d
                                      trainable_layers=3)
     # 训练自己数据集时不要修改这里的91，修改的是传入的num_classes参数
     model = FasterRCNN(backbone=backbone, num_classes=91)
@@ -51,7 +52,7 @@ def main(args):
 
     data_transform = {
         "train": transforms.Compose([transforms.ToTensor(),
-                                     transforms.RandomHorizontalFlip(0.5)]),
+                                     transforms.RandomHorizontalFlip(0.5)]), # 随机的水平翻转，注意这个是自己写的，不是公开库
         "val": transforms.Compose([transforms.ToTensor()])
     }
 
@@ -83,14 +84,14 @@ def main(args):
         train_data_loader = torch.utils.data.DataLoader(train_dataset,
                                                         batch_sampler=train_batch_sampler,
                                                         pin_memory=True,
-                                                        num_workers=nw,
+                                                        num_workers=0,
                                                         collate_fn=train_dataset.collate_fn)
     else:
         train_data_loader = torch.utils.data.DataLoader(train_dataset,
                                                         batch_size=batch_size,
                                                         shuffle=True,
                                                         pin_memory=True,
-                                                        num_workers=nw,
+                                                        num_workers=0,
                                                         collate_fn=train_dataset.collate_fn)
 
     # load validation data set

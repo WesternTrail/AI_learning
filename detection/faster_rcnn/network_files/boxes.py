@@ -38,8 +38,8 @@ def nms(boxes, scores, iou_threshold):
 def batched_nms(boxes, scores, idxs, iou_threshold):
     # type: (Tensor, Tensor, Tensor, float) -> Tensor
     """
-    Performs non-maximum suppression in a batched fashion.
-
+    在batch维度上进行非极大值抑制
+    https://www.bilibili.com/video/BV1of4y1m7nj?p=6&vd_source=2e2278987f9a42a4bfc8937a030f7215 52:59s
     Each index value correspond to a category, and NMS
     will not be applied between elements of different categories.
 
@@ -74,10 +74,10 @@ def batched_nms(boxes, scores, idxs, iou_threshold):
     max_coordinate = boxes.max()
 
     # to(): Performs Tensor dtype and/or device conversion
-    # 为每一个类别/每一层生成一个很大的偏移量
+    # 为每一层生成一个很大的偏移量
     # 这里的to只是让生成tensor的dytpe和device与boxes保持一致
     offsets = idxs.to(boxes) * (max_coordinate + 1)
-    # boxes加上对应层的偏移量后，保证不同类别/层之间boxes不会有重合的现象，偏移不会影响proposal，只是为了进行NMS处理方便
+    # boxes加上对应层的偏移量后，保证不同层之间boxes不会有重合的现象，偏移不会影响proposal，只是为了进行NMS处理方便
     boxes_for_nms = boxes + offsets[:, None]
     keep = nms(boxes_for_nms, scores, iou_threshold) # 根据IOU跟置信度做NMS抑制
     return keep
@@ -170,8 +170,8 @@ def box_iou(boxes1, boxes2):
 
     #  When the shapes do not match,
     #  the shape of the returned output tensor follows the broadcasting rules
-    lt = torch.max(boxes1[:, None, :2], boxes2[:, :2])  # left-top [N,M,2]
-    rb = torch.min(boxes1[:, None, 2:], boxes2[:, 2:])  # right-bottom [N,M,2]
+    lt = torch.max(boxes1[:, None, :2], boxes2[:, :2])  # 左上角[N,M,2]
+    rb = torch.min(boxes1[:, None, 2:], boxes2[:, 2:])  # 右下角 [N,M,2]
 
     wh = (rb - lt).clamp(min=0)  # [N,M,2]
     inter = wh[:, :, 0] * wh[:, :, 1]  # [N,M]

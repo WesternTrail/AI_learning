@@ -79,7 +79,7 @@ class BalancedPositiveNegativeSampler(object):
             neg_idx_per_image_mask[neg_idx_per_image] = 1
 
             pos_idx.append(pos_idx_per_image_mask)
-            neg_idx.append(neg_idx_per_image_mask) # 存放一个batch的所有图片的蒙版
+            neg_idx.append(neg_idx_per_image_mask) # 存放一个batch的所有图片的蒙版，是正样本的位置就会是1
 
         return pos_idx, neg_idx
 
@@ -287,9 +287,8 @@ class Matcher(object):
                 1) matches >= high_threshold
                 2) BETWEEN_THRESHOLDS matches in [low_threshold, high_threshold)
                 3) BELOW_LOW_THRESHOLD matches in [0, low_threshold)
-            allow_low_quality_matches (bool): if True, produce additional matches
-                for predictions that have only low-quality match candidates. See
-                set_low_quality_matches_ for more details.
+            allow_low_quality_matches (bool): 如果当前GT跟所有anchor的iou最大的那个都小于设定的阈值，
+            则仍然选取这个
         """
         self.BELOW_LOW_THRESHOLD = -1
         self.BETWEEN_THRESHOLDS = -2
@@ -353,6 +352,7 @@ class Matcher(object):
         return matches
 
     def set_low_quality_matches_(self, matches, all_matches, match_quality_matrix):
+        # p7,14:60s
         """
         Produce additional matches for predictions that have only low-quality matches.
         Specifically, for each ground-truth find the set of predictions that have
@@ -363,16 +363,16 @@ class Matcher(object):
         # For each gt, find the prediction with which it has highest quality
         # 对于每个gt boxes寻找与其iou最大的anchor，
         # highest_quality_foreach_gt为匹配到的最大iou值
-        highest_quality_foreach_gt, _ = match_quality_matrix.max(dim=1)  # the dimension to reduce.
+        highest_quality_foreach_gt, _ = match_quality_matrix.max(dim=1)  # 对每一行求最大值
 
         # Find highest quality match available, even if it is low, including ties
-        # 寻找每个gt boxes与其iou最大的anchor索引，一个gt匹配到的最大iou可能有多个anchor
+        # 寻找每个gt boxes与其iou最大的anchor索引，一个gt匹配到的最大iou可能有多个anchor，因为IOU相等
         # gt_pred_pairs_of_highest_quality = torch.nonzero(
         #     match_quality_matrix == highest_quality_foreach_gt[:, None]
         # )
         gt_pred_pairs_of_highest_quality = torch.where(
             torch.eq(match_quality_matrix, highest_quality_foreach_gt[:, None])
-        )
+        ) # 找到gt对应anchor的下标位置
         # Example gt_pred_pairs_of_highest_quality:
         #   tensor([[    0, 39796],
         #           [    1, 32055],
@@ -388,7 +388,7 @@ class Matcher(object):
         # Note how gt items 1, 2, 3, and 5 each have two ties
 
         # gt_pred_pairs_of_highest_quality[:, 0]代表是对应的gt index(不需要)
-        # pre_inds_to_update = gt_pred_pairs_of_highest_quality[:, 1]
+        # pre_inds_to_update = gt_pred_pairs_of_highest_quality[:, 1]，得到需要更新anchor索引
         pre_inds_to_update = gt_pred_pairs_of_highest_quality[1]
         # 保留该anchor匹配gt最大iou的索引，即使iou低于设定的阈值
         matches[pre_inds_to_update] = all_matches[pre_inds_to_update] # 把之前仅根据最大IOU分配的GTbox坐标覆盖到matches上去
@@ -400,7 +400,7 @@ def smooth_l1_loss(input, target, beta: float = 1. / 9, size_average: bool = Tru
     the extra beta parameter
     """
     n = torch.abs(input - target)
-    # cond = n < beta
+    # cond = n < beta,注意这里的|x|<0.1
     cond = torch.lt(n, beta)
     loss = torch.where(cond, 0.5 * n ** 2 / beta, n - 0.5 * beta)
     if size_average:

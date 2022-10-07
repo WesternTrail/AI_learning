@@ -27,7 +27,7 @@ def fastrcnn_loss(class_logits, box_regression, labels, regression_targets):
     labels = torch.cat(labels, dim=0)
     regression_targets = torch.cat(regression_targets, dim=0)
 
-    # 计算类别损失信息,类别损失是对所有的正负样本
+    # 计算类别损失信息,类别损失是对所有的正负样本,多元交叉熵
     classification_loss = F.cross_entropy(class_logits, labels)
 
     # get indices that correspond to the regression targets for
@@ -137,14 +137,14 @@ class RoIHeads(torch.nn.Module):
                 # 限制最小值，防止匹配标签时出现越界的情况
                 # 注意-1, -2对应的gt索引会调整到0,获取的标签类别为第0个gt的类别（实际上并不是）,下面会进一步处理
                 clamped_matched_idxs_in_image = matched_idxs_in_image.clamp(min=0)
-                # 获取proposal匹配到的gt对应标签,这一步主要是为了获取到正样本的标签
+                # 获取proposal匹配到的gt对应标签,这一步主要是为了获取到正样本的类别
                 labels_in_image = gt_labels_in_image[clamped_matched_idxs_in_image]
                 labels_in_image = labels_in_image.to(dtype=torch.int64)
 
                 # label background (below the low threshold)
-                # 将gt索引为-1的类别设置为0，即背景，负样本
+                # 将gt索引为-1的类别设置为0，即背景，负样本，再次处理
                 bg_inds = matched_idxs_in_image == self.proposal_matcher.BELOW_LOW_THRESHOLD   # -1
-                labels_in_image[bg_inds] = 0
+                labels_in_image[bg_inds] = 0 # -1的设置为背景
 
                 # label ignore proposals (between low and high threshold)
                 # 将gt索引为-2的类别设置为-1, 即废弃样本
@@ -162,7 +162,7 @@ class RoIHeads(torch.nn.Module):
         sampled_inds = []
         # 遍历每张图片的正负样本索引
         for img_idx, (pos_inds_img, neg_inds_img) in enumerate(zip(sampled_pos_inds, sampled_neg_inds)):
-            # 记录所有采集样本索引（包括正样本和负样本）
+            # 记录所有采集样本的anchor索引（包括正样本和负样本），而不是蒙版
             # img_sampled_inds = torch.nonzero(pos_inds_img | neg_inds_img).squeeze(1)
             img_sampled_inds = torch.where(pos_inds_img | neg_inds_img)[0]
             sampled_inds.append(img_sampled_inds)
@@ -220,11 +220,11 @@ class RoIHeads(torch.nn.Module):
         gt_labels = [t["labels"] for t in targets]
 
         # append ground-truth bboxes to proposal
-        # 将gt_boxes拼接到proposal后面做训练数据，防止正样本太少
+        # 将gt_boxes拼接到2000个proposal后面做训练数据，防止正样本太少
         proposals = self.add_gt_proposals(proposals, gt_boxes)
 
         # get matching gt indices for each proposal
-        # 为每个proposal匹配对应的gt_box，并划分到正负样本中
+        # matched_idxs：是每个anchor匹配的GT（丢弃的和背景暂时分配给0号GT），labels是每个anchor的分类类别标记，0代表背景
         matched_idxs, labels = self.assign_targets_to_proposals(proposals, gt_boxes, gt_labels)
         # sample a fixed proportion of positive-negative proposals
         # 按给定数量和比例采样正负样本
@@ -314,7 +314,7 @@ class RoIHeads(torch.nn.Module):
             scores = scores[:, 1:]
             labels = labels[:, 1:]
 
-            # 弄成一个batch一起处理
+            # 弄成把所有类弄在一起
             boxes = boxes.reshape(-1, 4)
             scores = scores.reshape(-1)
             labels = labels.reshape(-1)
@@ -324,7 +324,7 @@ class RoIHeads(torch.nn.Module):
             # gt: Computes input > other element-wise.
             # inds = torch.nonzero(torch.gt(scores, self.score_thresh)).squeeze(1)
             inds = torch.where(torch.gt(scores, self.score_thresh))[0]
-            boxes, scores, labels = boxes[inds], scores[inds], labels[inds]
+            boxes, scores, labels = boxes[inds], scores[inds], labels[inds] # 20000->92
 
             # remove empty boxes
             # 移除小目标
@@ -376,7 +376,7 @@ class RoIHeads(torch.nn.Module):
             regression_targets = None
 
         # 将采集样本通过Multi-scale RoIAlign pooling层，可能将5个特征层上的信息进行下采样resize到(1024(512+512),256,7x7)？
-        # box_features_shape: [num_proposals, channel, height, width]
+        # box_features_shape: [num_proposals, channel, height, width],注意这里proposals的数量从2000->1024
         box_features = self.box_roi_pool(features, proposals, image_shapes)
 
         # 通过roi_pooling后的两层全连接层

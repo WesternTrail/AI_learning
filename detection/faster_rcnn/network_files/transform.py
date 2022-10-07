@@ -60,7 +60,7 @@ class GeneralizedRCNNTransform(nn.Module):
     def __init__(self, min_size, max_size, image_mean, image_std):
         super(GeneralizedRCNNTransform, self).__init__()
         if not isinstance(min_size, (list, tuple)):
-            min_size = (min_size,)  # 最小的尺度为何要转成元组,最大的不要？
+            min_size = (min_size,)
         self.min_size = min_size      # 指定图像的最小边长范围
         self.max_size = max_size      # 指定图像的最大边长范围
         self.image_mean = image_mean  # 指定图像在标准化处理中的均值
@@ -242,8 +242,8 @@ class GeneralizedRCNNTransform(nn.Module):
                 raise ValueError("images is expected to be a list of 3d tensors "
                                  "of shape [C, H, W], got {}".format(image.shape))
             image = self.normalize(image)                # 对图像进行标准化处理
-            image, target_dict = self.resize(image, target_dict)   # 对图像和对应的bboxes缩放到指定范围最小边长800
-            images[i] = image # 用resize之后的图片覆盖掉原来的图片
+            image, target_dict = self.resize(image, target_dict)   # 对图像和对应的bboxes放大到指定范围最小边长800
+            images[i] = image                                      # 用resize之后的图片覆盖掉原来的图片
             if targets is not None and target_dict is not None:
                 targets[i] = target_dict
 

@@ -154,7 +154,7 @@ class AnchorsGenerator(nn.Module):
             shifts_anchor = shifts.view(-1, 1, 4) + base_anchors.view(1, -1, 4)
             anchors.append(shifts_anchor.reshape(-1, 4))
 
-        return anchors  # List[Tensor(all_num_anchors, 4)]，可能有1万多个anchors
+        return anchors  # List[Tensor(all_num_anchors, 4)]，可能有上万多个anchors
 
     def cached_grid_anchors(self, grid_sizes, strides):
         # type: (List[List[int]], List[List[Tensor]]) -> List[Tensor]
@@ -172,7 +172,7 @@ class AnchorsGenerator(nn.Module):
         # 获取每个预测特征层的尺寸(height, width)
         grid_sizes = list([feature_map.shape[-2:] for feature_map in feature_maps])
 
-        # 获取输入图像的height和width,这个是标准化（resize和padding）后的之后的图片
+        # 获取输入图像的height和width,这个是标准化（resize和batch_imgs向上取32整）后的之后的图片
         image_size = image_list.tensors.shape[-2:]
 
         # 获取变量类型和设备类型
@@ -192,14 +192,14 @@ class AnchorsGenerator(nn.Module):
 
         anchors = torch.jit.annotate(List[List[torch.Tensor]], [])
         # 遍历一个batch中的每张图像的size
-        for i, (image_height, image_width) in enumerate(image_list.image_sizes): # padding之前的图像尺寸，可能大小不一
+        for i, (image_height, image_width) in enumerate(image_list.image_sizes): # batch_imgs之前的图像尺寸，可能大小不一
             anchors_in_image = []
             # 遍历每张预测特征图映射回原图的anchors坐标信息，mobilenet只会用一个特征图去生成anchors
             for anchors_per_feature_map in anchors_over_all_feature_maps:
                 anchors_in_image.append(anchors_per_feature_map)
             anchors.append(anchors_in_image)    # anchors存储一个batch里每张图片的anchors，其实都是一样的
         # 将每一张图像的所有预测特征层的anchors坐标信息拼接在一起
-        # anchors是个list，每个元素又是一个list，所以要转为tesor
+        # 把所有特征图上的anchor弄到一起
         anchors = [torch.cat(anchors_per_image) for anchors_per_image in anchors]
         # Clear the cache in case that memory leaks.
         self._cache.clear()
@@ -216,13 +216,13 @@ class RPNHead(nn.Module):
         num_anchors: number of anchors to be predicted
     """
 
-    def __init__(self, in_channels, num_anchors): # num_anchors一般是3
+    def __init__(self, in_channels, num_anchors):
         super(RPNHead, self).__init__()
         # 3x3 滑动窗口,通道数不变，检测是否包含物体
         self.conv = nn.Conv2d(in_channels, in_channels, kernel_size=3, stride=1, padding=1)
-        # 计算预测的目标分数（这里的目标只是指前景或者背景）
+        # 计算预测的目标分数（这里的目标只是指前景或者背景，每个anchor预测三种尺寸的anchor是否存在物体
         self.cls_logits = nn.Conv2d(in_channels, num_anchors, kernel_size=1, stride=1)
-        # 预测每个像素点生成的proposal的bbox regression参数
+        # 预测每个特征点生成的anchors的bbox regression回归参数
         self.bbox_pred = nn.Conv2d(in_channels, num_anchors * 4, kernel_size=1, stride=1)
 
         for layer in self.children():
@@ -302,7 +302,7 @@ def concat_box_prediction_layers(box_cls, box_regression):
         box_regression_per_level = permute_and_flatten(box_regression_per_level, N, A, 4, H, W)
         box_regression_flattened.append(box_regression_per_level)
 
-    box_cls = torch.cat(box_cls_flattened, dim=1).flatten(0, -2)  #  把一个batch的分类结果放在一起
+    box_cls = torch.cat(box_cls_flattened, dim=1).flatten(0, -2)  #  把一个batch对anchor分类结果放在一起
     box_regression = torch.cat(box_regression_flattened, dim=1).reshape(-1, 4)
     return box_cls, box_regression
 
@@ -405,9 +405,9 @@ class RegionProposalNetwork(torch.nn.Module):
             else:
                 # 计算anchors与真实bbox的iou信息
                 # set to self.box_similarity when https://github.com/pytorch/pytorch/issues/27495 lands
-                match_quality_matrix = box_ops.box_iou(gt_boxes, anchors_per_image)
+                match_quality_matrix = box_ops.box_iou(gt_boxes, anchors_per_image) # [GT,num_anchors]p7,2:30s
                 # 计算每个anchors与gt匹配iou最大的索引（如果iou<0.3索引置为-1，0.3<iou<0.7索引为-2），并且考虑最大的交并比
-                matched_idxs = self.proposal_matcher(match_quality_matrix)
+                matched_idxs = self.proposal_matcher(match_quality_matrix) # 可以看到大部分都是负样本
                 # get the targets corresponding GT for each proposal
                 # NB: need to clamp the indices because we can have a single
                 # GT in the image, and matched_idxs can be -2, which goes
@@ -457,7 +457,7 @@ class RegionProposalNetwork(torch.nn.Module):
                 num_anchors = ob.shape[1]  # 预测特征层上的预测的anchors个数
                 pre_nms_top_n = min(self.pre_nms_top_n(), num_anchors) # 每个特征层只取前2000个
 
-            # 取得前2000个最大score的anchor
+            # 取得前2000个最大score的anchor的索引
             _, top_n_idx = ob.topk(pre_nms_top_n, dim=1) # 对每层特征层上的anchor仅仅通过score来选2000个
             r.append(top_n_idx + offset) # 加offset是因为ob的top_n_idx坐标都是相对坐标
             offset += num_anchors
@@ -493,7 +493,7 @@ class RegionProposalNetwork(torch.nn.Module):
         levels = levels.reshape(1, -1).expand_as(objectness) # 直接在第一个维度进行复制objectness，一个batch几个图像就复制几份
 
         # select top_n boxes independently per level before applying nms
-        # 获取每张预测特征图上预测概率排前pre_nms_top_n的anchors索引值
+        # 获取每张预测特征图上预测概率排前pre_nms_top_n的anchors索引值，采用非极大值抑制
         top_n_idx = self._get_top_n_idx(objectness, num_anchors_per_level)
 
         image_range = torch.arange(num_images, device=device)
@@ -501,7 +501,7 @@ class RegionProposalNetwork(torch.nn.Module):
 
         # 根据每个预测特征层预测概率排前pre_nms_top_n的anchors索引值获取相应概率信息
         objectness = objectness[batch_idx, top_n_idx]
-        levels = levels[batch_idx, top_n_idx] # 这个单纯存放索引
+        levels = levels[batch_idx, top_n_idx] # 这个单纯存放属于第几个特征层索引
         # 预测概率排前pre_nms_top_n的anchors索引值获取相应bbox坐标信息
         proposals = proposals[batch_idx, top_n_idx]
 
@@ -516,7 +516,7 @@ class RegionProposalNetwork(torch.nn.Module):
 
             # 返回boxes满足宽，剔除尺寸太小的框
             keep = box_ops.remove_small_boxes(boxes, self.min_size)
-            boxes, scores, lvl = boxes[keep], scores[keep], lvl[keep]
+            boxes, scores, lvl = boxes[keep], scores[keep], lvl[keep] # 剔除可能不会起作用，没有尺寸会真的这么小
 
             # 移除小概率boxes，参考下面这个链接
             # https://github.com/pytorch/vision/pull/3205
@@ -527,7 +527,7 @@ class RegionProposalNetwork(torch.nn.Module):
             keep = box_ops.batched_nms(boxes, scores, lvl, self.nms_thresh) #8700-3319大量减少proposal
 
             # keep only topk scoring predictions
-            keep = keep[: self.post_nms_top_n()] # 3319-2000变成2000个候选框
+            keep = keep[: self.post_nms_top_n()]     # 3319-2000变成2000个候选框
             boxes, scores = boxes[keep], scores[keep]
 
             final_boxes.append(boxes)
@@ -541,7 +541,7 @@ class RegionProposalNetwork(torch.nn.Module):
         Arguments:
             objectness (Tensor)：预测的前景概率
             pred_bbox_deltas (Tensor)：预测的bbox regression
-            labels (List[Tensor])：真实的标签 1, 0, -1（batch中每一张图片的labels对应List的一个元素中）
+            labels (List[Tensor])：一张图片的4个特征层每个特征点生成的anchors对应真实的标签 1, 0, -1
             regression_targets (List[Tensor])：真实的bbox regression
 
         Returns:
@@ -619,9 +619,9 @@ class RegionProposalNetwork(torch.nn.Module):
         num_anchors_per_level_shape_tensors = [o[0].shape for o in objectness]
         num_anchors_per_level = [s[0] * s[1] * s[2] for s in num_anchors_per_level_shape_tensors]
 
-        # 调整内部tensor格式以及shape，将一个batch_size中的所有ancchor结果进行concat
+        # 调整内部tensor格式以及shape，将一个batch_size中的所有ancchor的预测结果进行concat
         objectness, pred_bbox_deltas = concat_box_prediction_layers(objectness,
-                                                                    pred_bbox_deltas)
+                                                                    pred_bbox_deltas) # 与anchors尺寸统一
 
         # apply pred_bbox_deltas to anchors to obtain the decoded proposals
         # note that we detach the deltas because Faster R-CNN do not backprop through

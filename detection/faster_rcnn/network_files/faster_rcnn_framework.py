@@ -83,12 +83,12 @@ class FasterRCNNBase(nn.Module):
         images, targets = self.transform(images, targets)  # 传入到网络前先对图像进行预处理
 
         # print(images.tensors.shape) # 将一个batch的图像输入backbone得到特征图，mobilenet就只有一个，resent有4个
-        features = self.backbone(images.tensors)
+        features = self.backbone(images.tensors) # RPN结构时POOL层也会用到
         if isinstance(features, torch.Tensor):  # 若只在一层特征层上预测，将feature放入有序字典中，并编号为‘0’
             features = OrderedDict([('0', features)])  # 若在多层特征层上预测，传入的就是一个有序字典
 
         # 将特征层以及标注target信息传入rpn中
-        # proposals: List[Tensor], Tensor_shape: [num_proposals, 4],
+        # proposals: List[Tensor], Tensor_shape: [2000, 4],
         # 每个proposals是绝对坐标，且为(x1, y1, x2, y2)格式
         proposals, proposal_losses = self.rpn(images, features, targets)
 
@@ -152,8 +152,8 @@ class FastRCNNPredictor(nn.Module):
 
     def __init__(self, in_channels, num_classes):
         super(FastRCNNPredictor, self).__init__()
-        self.cls_score = nn.Linear(in_channels, num_classes)
-        self.bbox_pred = nn.Linear(in_channels, num_classes * 4)
+        self.cls_score = nn.Linear(in_channels, num_classes) # 1024,21
+        self.bbox_pred = nn.Linear(in_channels, num_classes * 4) # 1024,84
 
     def forward(self, x):
         if x.dim() == 4:
@@ -255,7 +255,7 @@ class FasterRCNN(FasterRCNNBase):
                  # FPN有多个预测层,每个特征层rpn中在nms处理前保留的proposal数(根据score)
                  rpn_post_nms_top_n_train=2000, rpn_post_nms_top_n_test=1000,  # rpn中在nms处理后保留的proposal数
                  rpn_nms_thresh=0.7,  # rpn中进行nms处理时使用的iou阈值
-                 rpn_fg_iou_thresh=0.7, rpn_bg_iou_thresh=0.3,  # rpn计算损失时，采集正负样本设置的阈值
+                 rpn_fg_iou_thresh=0.7, rpn_bg_iou_thresh=0.3,  # rpn计算损失时，采集正负样本IOU设置的阈值
                  rpn_batch_size_per_image=256, rpn_positive_fraction=0.5,  # rpn计算损失时采样的样本数，以及正样本占总样本的比例
                  rpn_score_thresh=0.0,
                  # Box parameters

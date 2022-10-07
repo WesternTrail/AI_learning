@@ -17,8 +17,8 @@ class ImageList(object):
             tensors (tensor) padding后的图像数据
             image_sizes (list[tuple[int, int]])  padding前的图像尺寸
         """
-        self.tensors = tensors # 这个是一个batch的数据，长宽都是一样的
-        self.image_sizes = image_sizes  # 这个是resize到最小，最大边长之后的数据
+        self.tensors = tensors # 这个打包成一个batch之后的数据
+        self.image_sizes = image_sizes  # 这个是线性差值resize之后的数据
 
     def to(self, device):
         # type: (Device) -> ImageList # noqa

@@ -14,21 +14,21 @@ def create_model(num_classes):
     import torchvision
     from torchvision.models.feature_extraction import create_feature_extractor
 
-    # vgg16
-    backbone = torchvision.models.vgg16_bn(pretrained=True)
-    # print(backbone)
-    backbone = create_feature_extractor(backbone, return_nodes={"features.42": "0"})
-    # out = backbone(torch.rand(1, 3, 224, 224))
-    # print(out["0"].shape)
-    backbone.out_channels = 512
-
-    # resnet50 backbone
-    # backbone = torchvision.models.resnet50(pretrained=True)
+    # # vgg16
+    # backbone = torchvision.models.vgg16_bn(pretrained=True)
     # # print(backbone)
-    # backbone = create_feature_extractor(backbone, return_nodes={"layer3": "0"})
+    # backbone = create_feature_extractor(backbone, return_nodes={"features.42": "0"})
     # # out = backbone(torch.rand(1, 3, 224, 224))
     # # print(out["0"].shape)
-    # backbone.out_channels = 1024
+    # backbone.out_channels = 512
+
+    # resnet50 backbone
+    backbone = torchvision.models.resnet50(pretrained=True)
+    # print(backbone)
+    backbone = create_feature_extractor(backbone, return_nodes={"layer3": "0"}) # 仅采用resnet的layer3
+    # out = backbone(torch.rand(1, 3, 224, 224))
+    # print(out["0"].shape)
+    backbone.out_channels = 1024
 
     # EfficientNetB0
     # backbone = torchvision.models.efficientnet_b0(pretrained=True)
@@ -38,7 +38,7 @@ def create_model(num_classes):
     # # print(out["0"].shape)
     # backbone.out_channels = 112
 
-    anchor_generator = AnchorsGenerator(sizes=((32, 64, 128, 256, 512),),
+    anchor_generator = AnchorsGenerator(sizes=((32, 64, 128, 256, 512),),  # 一个特征层上生成5种不同尺度的锚框，有3种不同的高宽比
                                         aspect_ratios=((0.5, 1.0, 2.0),))
 
     roi_pooler = torchvision.ops.MultiScaleRoIAlign(featmap_names=['0'],  # 在哪些特征层上进行RoIAlign pooling
@@ -227,7 +227,7 @@ if __name__ == "__main__":
                         metavar='W', help='weight decay (default: 1e-4)',
                         dest='weight_decay')
     # 训练的batch size
-    parser.add_argument('--batch_size', default=4, type=int, metavar='N',
+    parser.add_argument('--batch_size', default=1, type=int, metavar='N',
                         help='batch size when training.')
     parser.add_argument('--aspect-ratio-group-factor', default=3, type=int)
     # 是否使用混合精度训练(需要GPU支持混合精度)

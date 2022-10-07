@@ -10,14 +10,7 @@ from torch.jit.annotations import Tuple, List, Dict
 
 class IntermediateLayerGetter(nn.ModuleDict):
     """
-    Module wrapper that returns intermediate layers from a model
-    It has a strong assumption that the modules have been registered
-    into the model in the same order as they are used.
-    This means that one should **not** reuse the same nn.Module
-    twice in the forward if you want this to work.
-    Additionally, it is only able to query submodules that are directly
-    assigned to the model. So if `model` is passed, `model.feature1` can
-    be returned, but not `model.feature1.layer2`.
+    保存resnet中需要使用的用来目标检测的网络层
     Arguments:
         model (nn.Module): model on which we will extract the features
         return_layers (Dict[name, new_name]): a dict containing the names
@@ -39,11 +32,11 @@ class IntermediateLayerGetter(nn.ModuleDict):
 
         # 遍历模型子模块按顺序存入有序字典
         # 只保存layer4及其之前的结构，舍去之后不用的结构
-        for name, module in model.named_children():
+        for name, module in model.named_children(): # 遍历所有网络层
             layers[name] = module
             if name in return_layers:
                 del return_layers[name]
-            if not return_layers:
+            if not return_layers: # returnlayers中都读取了，则直接break
                 break
 
         super().__init__(layers)
@@ -156,11 +149,11 @@ class FeaturePyramidNetwork(nn.Module):
         results.append(self.get_result_from_layer_blocks(last_inner, -1))
 
         for idx in range(len(x) - 2, -1, -1):
-            inner_lateral = self.get_result_from_inner_blocks(x[idx], idx)
+            inner_lateral = self.get_result_from_inner_blocks(x[idx], idx) # 首先进行1x1卷积
             feat_shape = inner_lateral.shape[-2:]
-            inner_top_down = F.interpolate(last_inner, size=feat_shape, mode="nearest")
+            inner_top_down = F.interpolate(last_inner, size=feat_shape, mode="nearest") # 高维特征图用插值上采样
             last_inner = inner_lateral + inner_top_down
-            results.insert(0, self.get_result_from_layer_blocks(last_inner, idx))
+            results.insert(0, self.get_result_from_layer_blocks(last_inner, idx)) # 注意这个是头插而不是尾插
 
         # 在layer4对应的预测特征层基础上生成预测特征矩阵5
         if self.extra_blocks is not None:
@@ -179,7 +172,7 @@ class LastLevelMaxPool(torch.nn.Module):
 
     def forward(self, x: List[Tensor], y: List[Tensor], names: List[str]) -> Tuple[List[Tensor], List[str]]:
         names.append("pool")
-        x.append(F.max_pool2d(x[-1], 1, 2, 0))  # input, kernel_size, stride, padding
+        x.append(F.max_pool2d(x[-1], 1, 2, 0))  # input, kernel_size, stride, padding,
         return x, names
 
 
@@ -212,12 +205,12 @@ class BackboneWithFPN(nn.Module):
                  re_getter=True):
         super().__init__()
 
-        if extra_blocks is None:
+        if extra_blocks is None: # 最后一层的maxpool
             extra_blocks = LastLevelMaxPool()
 
         if re_getter is True:
             assert return_layers is not None
-            self.body = IntermediateLayerGetter(backbone, return_layers=return_layers)
+            self.body = IntermediateLayerGetter(backbone, return_layers=return_layers) # 只需要layer4之前的网络层
         else:
             self.body = backbone
 
