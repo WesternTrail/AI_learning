@@ -19,7 +19,7 @@ def create_model(num_classes, load_pretrain_weights=True):
     # 如果GPU显存很大可以设置比较大的batch_size就可以将norm_layer设置为普通的BatchNorm2d
     # trainable_layers包括['layer4', 'layer3', 'layer2', 'layer1', 'conv1']， 5代表全部训练
     # resnet50 imagenet weights url: https://download.pytorch.org/models/resnet50-0676ba61.pth
-    backbone = resnet50_fpn_backbone(pretrain_path="/content/drive/MyDrive/目标检测/fasterrcnn/resnet50.pth",
+    backbone = resnet50_fpn_backbone(pretrain_path="/content/drive/Shareddrives/2448431638/目标检测/faster-rcnn/try2/resnet50.pth（副本）",
                                      norm_layer=torch.nn.BatchNorm2d,
                                      trainable_layers=3)
     # 训练自己数据集时不要修改这里的91，修改的是传入的num_classes参数
@@ -28,7 +28,7 @@ def create_model(num_classes, load_pretrain_weights=True):
     if load_pretrain_weights:
         # 载入预训练模型权重
         # https://download.pytorch.org/models/fasterrcnn_resnet50_fpn_coco-258fb6c6.pth
-        weights_dict = torch.load("/content/drive/MyDrive/目标检测/fasterrcnn/fasterrcnn_resnet50_fpn_coco.pth", map_location='cpu')
+        weights_dict = torch.load("/content/drive/Shareddrives/2448431638/目标检测/faster-rcnn/try2/fasterrcnn_resnet50_fpn_coco.pth（副本）", map_location='cpu')
         missing_keys, unexpected_keys = model.load_state_dict(weights_dict, strict=False)
         if len(missing_keys) != 0 or len(unexpected_keys) != 0:
             print("missing_keys: ", missing_keys)
@@ -196,7 +196,7 @@ if __name__ == "__main__":
     # 检测目标类别数(不包含背景)
     parser.add_argument('--num-classes', default=20, type=int, help='num_classes')
     # 文件保存地址
-    parser.add_argument('--output-dir', default='/content/drive/MyDrive/目标检测/fasterrcnn/try2/save_weights', help='path where to save')
+    parser.add_argument('--output-dir', default='/content/drive/Shareddrives/2448431638/目标检测/faster-rcnn/try2/save_weights', help='path where to save')
     # 若需要接着上次训练，则指定上次训练保存权重文件地址
     parser.add_argument('--resume', default='', type=str, help='resume from checkpoint')
     # 指定接着从哪个epoch数开始训练
